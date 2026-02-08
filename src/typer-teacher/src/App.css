@@ -1,6 +1,10 @@
-.centered-content {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+.lesson-area {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+}
+
+.current-char {
+  color: #212529;
+  border-bottom: 2px solid #6c757d;
+  font-weight: bold;
 }
