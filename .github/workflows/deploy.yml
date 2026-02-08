@@ -1,0 +1,56 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: src/typer-teacher/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/typer-teacher
+        run: npm ci
+
+      - name: Run tests
+        working-directory: src/typer-teacher
+        run: npx react-scripts test --watchAll=false
+
+      - name: Build
+        working-directory: src/typer-teacher
+        env:
+          PUBLIC_URL: /typer-teacher
+        run: npm run build
+
+      - name: Add 404 redirect for SPA routing
+        run: cp src/typer-teacher/build/index.html src/typer-teacher/build/404.html
+
+      - uses: actions/configure-pages@v4
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: src/typer-teacher/build
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
