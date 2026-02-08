@@ -2,7 +2,9 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - claude/create-typer-teacher-app-fdsi3
 
 permissions:
   contents: read
@@ -34,20 +36,23 @@ jobs:
 
       - name: Run tests
         working-directory: src/typer-teacher
-        run: npx react-scripts test --watchAll=false
+        run: CI=true npx react-scripts test --watchAll=false
 
       - name: Build
         working-directory: src/typer-teacher
         env:
           PUBLIC_URL: /typer-teacher
+          CI: true
         run: npm run build
 
-      - name: Add 404 redirect for SPA routing
+      - name: Copy index.html to 404.html for SPA routing
         run: cp src/typer-teacher/build/index.html src/typer-teacher/build/404.html
 
-      - uses: actions/configure-pages@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v4
 
-      - uses: actions/upload-pages-artifact@v3
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
           path: src/typer-teacher/build
 
