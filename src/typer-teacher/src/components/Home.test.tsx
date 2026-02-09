@@ -21,11 +21,20 @@ describe('Home', () => {
     expect(screen.getByText(/learn to touch-type/i)).toBeInTheDocument();
   });
 
-  test('renders a link to Lesson 1', () => {
+  test('renders lesson cards for all 3 lessons', () => {
     renderHome();
-    const link = screen.getByRole('link', { name: /start lesson 1/i });
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute('href', '/lesson/1');
+    expect(screen.getByText('Lesson 1')).toBeInTheDocument();
+    expect(screen.getByText('Lesson 2')).toBeInTheDocument();
+    expect(screen.getByText('Lesson 3')).toBeInTheDocument();
+  });
+
+  test('renders Start links for each lesson', () => {
+    renderHome();
+    const startLinks = screen.getAllByRole('link', { name: /start/i });
+    expect(startLinks).toHaveLength(3);
+    expect(startLinks[0]).toHaveAttribute('href', '/lesson/1');
+    expect(startLinks[1]).toHaveAttribute('href', '/lesson/2');
+    expect(startLinks[2]).toHaveAttribute('href', '/lesson/3');
   });
 
   test('sets the document title', () => {

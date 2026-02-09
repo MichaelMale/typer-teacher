@@ -1,46 +1,73 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Container, ProgressBar, Alert } from 'react-bootstrap';
-
-interface Exercise {
-  label: string;
-  text: string;
-}
-
-const EXERCISES: Exercise[] = [
-  { label: 'Step 1', text: 'f' },
-  { label: 'Step 2', text: 'j' },
-  { label: 'Step 3', text: 'fj' },
-  { label: 'Step 4', text: 'jf' },
-  { label: 'Step 5', text: 'fjfj' },
-  { label: 'Step 6', text: 'jfjf' },
-  { label: 'Step 7', text: 'fjfjfj' },
-  { label: 'Step 8', text: 'jfjfjf' },
-  { label: 'Step 9', text: 'fjfjfjfjfj' },
-  { label: 'Step 10', text: 'fjfjfjfjfjfjfjfjfjfjfjfj' },
-];
+import { useParams, Link } from 'react-router-dom';
+import { getLesson, LessonData } from '../data/lessons';
+import { saveSession } from '../services/sessionStorage';
+import { getUserCookie } from '../services/cookie';
 
 const TypingLesson: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const lessonId = Number(id) || 1;
+  const lesson: LessonData | undefined = getLesson(lessonId);
+
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [typedText, setTypedText] = useState('');
   const [errors, setErrors] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [started, setStarted] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const startTimeRef = useRef<number>(0);
 
-  const currentExercise = EXERCISES[exerciseIndex];
+  const exercises = lesson?.exercises ?? [];
+  const currentExercise = exercises[exerciseIndex];
   const targetText = currentExercise?.text ?? '';
 
   useEffect(() => {
-    document.title = 'Typer Teacher - Lesson 1: Home Keys (F & J)';
-  }, []);
+    document.title = lesson
+      ? `Typer Teacher - Lesson ${lesson.id}: ${lesson.title}`
+      : 'Typer Teacher - Lesson Not Found';
+  }, [lesson]);
+
+  // Reset state when lesson id changes
+  useEffect(() => {
+    setExerciseIndex(0);
+    setTypedText('');
+    setErrors(0);
+    setCompleted(false);
+    setStarted(false);
+    setSaved(false);
+    startTimeRef.current = 0;
+  }, [lessonId]);
+
+  // Save session once on completion
+  useEffect(() => {
+    if (completed && !saved && lesson) {
+      const userName = getUserCookie() || 'Anonymous';
+      const totalChars = exercises.reduce((sum, ex) => sum + ex.text.length, 0);
+      const durationMs = Date.now() - startTimeRef.current;
+      saveSession({
+        userName,
+        lessonId: lesson.id,
+        lessonTitle: lesson.title,
+        errors,
+        totalChars,
+        durationMs,
+      });
+      setSaved(true);
+    }
+  }, [completed, saved, lesson, exercises, errors]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (completed) return;
-      if (e.key === 'Tab' || e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+      if (['Tab', 'Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return;
 
       e.preventDefault();
 
-      if (!started) setStarted(true);
+      if (!started) {
+        setStarted(true);
+        startTimeRef.current = Date.now();
+      }
 
       const expectedChar = targetText[typedText.length];
 
@@ -49,7 +76,7 @@ const TypingLesson: React.FC = () => {
         setTypedText(newTyped);
 
         if (newTyped === targetText) {
-          if (exerciseIndex < EXERCISES.length - 1) {
+          if (exerciseIndex < exercises.length - 1) {
             setExerciseIndex((prev) => prev + 1);
             setTypedText('');
           } else {
@@ -60,7 +87,7 @@ const TypingLesson: React.FC = () => {
         setErrors((prev) => prev + 1);
       }
     },
-    [typedText, targetText, exerciseIndex, completed, started]
+    [typedText, targetText, exerciseIndex, exercises.length, completed, started]
   );
 
   useEffect(() => {
@@ -74,18 +101,32 @@ const TypingLesson: React.FC = () => {
     setErrors(0);
     setCompleted(false);
     setStarted(false);
+    setSaved(false);
+    startTimeRef.current = 0;
   };
 
+  if (!lesson) {
+    return (
+      <Container className="py-5 text-center">
+        <h1>Lesson not found</h1>
+        <Link to="/" className="btn btn-outline-dark mt-3">
+          Back to Home
+        </Link>
+      </Container>
+    );
+  }
+
   const overallProgress = Math.round(
-    ((exerciseIndex + (typedText.length / (targetText.length || 1))) / EXERCISES.length) * 100
+    ((exerciseIndex + (typedText.length / (targetText.length || 1))) / exercises.length) * 100
   );
+
+  const nextLessonId = lessonId + 1;
+  const hasNextLesson = !!getLesson(nextLessonId);
 
   return (
     <Container className="py-4" style={{ maxWidth: 720 }}>
-      <h1 className="mb-3">Lesson 1: Home Keys (F &amp; J)</h1>
-      <p className="text-muted mb-4">
-        Place your index fingers on <strong>F</strong> and <strong>J</strong> (the keys with bumps). Type each sequence as shown below.
-      </p>
+      <h1 className="mb-3">Lesson {lesson.id}: {lesson.title}</h1>
+      <p className="text-muted mb-4">{lesson.description}</p>
 
       <ProgressBar
         now={completed ? 100 : overallProgress}
@@ -99,14 +140,21 @@ const TypingLesson: React.FC = () => {
         <Alert variant="success" className="text-center">
           <Alert.Heading>Lesson Complete!</Alert.Heading>
           <p>You finished with <strong>{errors}</strong> error{errors !== 1 ? 's' : ''}.</p>
-          <button className="btn btn-outline-secondary" onClick={restart}>
-            Restart Lesson
-          </button>
+          <div className="d-flex justify-content-center gap-2">
+            <button className="btn btn-outline-secondary" onClick={restart}>
+              Restart Lesson
+            </button>
+            {hasNextLesson && (
+              <Link to={`/lesson/${nextLessonId}`} className="btn btn-outline-dark">
+                Next Lesson
+              </Link>
+            )}
+          </div>
         </Alert>
       ) : (
         <div className="lesson-area p-4 rounded" data-testid="lesson-area">
           <h5 className="text-muted mb-2">
-            {currentExercise.label} of {EXERCISES.length}
+            {currentExercise.label} of {exercises.length}
           </h5>
           <div
             className="target-text mb-3"
@@ -122,7 +170,7 @@ const TypingLesson: React.FC = () => {
               }
               return (
                 <span key={i} className={className} data-testid={`char-${i}`}>
-                  {char}
+                  {char === ' ' ? '\u00A0' : char}
                 </span>
               );
             })}
